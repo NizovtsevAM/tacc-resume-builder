@@ -1,0 +1,11 @@
+# Environment and secrets
+.idea
+.env
+
+# Input/Output data directories - generated artifacts
+input/
+output/
+
+# Byte-compiled files, etc.
+__pycache__/
+*.pyc
