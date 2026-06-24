@@ -13,8 +13,11 @@ from typing import Any
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 from .config import Settings
+from .docx_styles import get_docx_theme
 from .models import ResumeProfile
 
 logger = logging.getLogger("TACC Resume builder")
@@ -186,42 +189,37 @@ def export_resume_html(profile: ResumeProfile, settings: Settings, output_path: 
 class ResumeDocumentGenerator:
     """Generates ATS-optimized professional DOCX resumes."""
 
-    FONTS = ["Calibri", "Arial", "Helvetica", "Segoe UI", "Verdana"]
-
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self._font_name = self.FONTS[0]
+        self._theme = get_docx_theme(settings.resume_template)
+        logger.info("Using DOCX template: %s", self._theme.name)
 
     def generate(self, profile: ResumeProfile) -> Document:
         """Create a professional DOCX document from the resume profile."""
+        theme = self._theme
         doc = Document()
 
-        # Page setup
         section = doc.sections[0]
-        section.top_margin = Inches(0.5)
-        section.bottom_margin = Inches(0.5)
-        section.left_margin = Inches(0.75)
-        section.right_margin = Inches(0.75)
+        section.top_margin = Inches(theme.margin_top)
+        section.bottom_margin = Inches(theme.margin_bottom)
+        section.left_margin = Inches(theme.margin_left)
+        section.right_margin = Inches(theme.margin_right)
 
-        # Default style
         style = doc.styles["Normal"]
-        style.font.name = self._font_name
-        style.font.size = Pt(10.5)
+        style.font.name = theme.font_name
+        style.font.size = Pt(theme.body_size)
         style.paragraph_format.space_after = Pt(2)
         style.paragraph_format.space_before = Pt(0)
         style.paragraph_format.line_spacing = 1.08
 
-        # Header
         self._add_header(doc, profile)
 
-        # Professional Summary
         self._add_section_heading(doc, "PROFESSIONAL SUMMARY")
         p = doc.add_paragraph(profile.summary)
-        p.style.font.name = self._font_name
+        p.style.font.name = theme.font_name
         p.paragraph_format.space_after = Pt(6)
 
-        # Core Competencies
-        if profile.skills:
+        if profile.skills and theme.show_core_competencies:
             self._add_section_heading(doc, "CORE COMPETENCIES")
             all_skills: list[str] = []
             for cat in [
@@ -258,10 +256,9 @@ class ResumeDocumentGenerator:
                     seen.add(s.lower())
 
             p = doc.add_paragraph(", ".join(unique_skills[:20]))
-            p.style.font.name = self._font_name
+            p.style.font.name = theme.font_name
             p.paragraph_format.space_after = Pt(6)
 
-        # Technical Skills
         if profile.skills:
             self._add_section_heading(doc, "TECHNICAL SKILLS")
             for category in [
@@ -289,24 +286,52 @@ class ResumeDocumentGenerator:
                 ]:
                     self._add_skill_line(doc, category, profile.skills[category])
 
-        # Professional Experience
         self._add_section_heading(doc, "PROFESSIONAL EXPERIENCE")
         for project in profile.projects:
             self._add_project_entry(doc, project)
 
-        # Education (optional)
         if profile.education:
             self._add_section_heading(doc, "EDUCATION")
             p = doc.add_paragraph(profile.education)
-            p.style.font.name = self._font_name
+            p.style.font.name = theme.font_name
 
         return doc
 
-    @staticmethod
-    def _add_hyperlink(paragraph, text: str, url: str, font_size: Any) -> None:
-        """Add a hyperlink to a paragraph."""
-        from docx.oxml.ns import qn
+    def _add_run(
+        self,
+        paragraph,
+        text: str,
+        *,
+        size: float,
+        bold: bool = False,
+        italic: bool = False,
+        color: RGBColor | None = None,
+        font_name: str | None = None,
+    ):
+        theme = self._theme
+        run = paragraph.add_run(text)
+        run.font.size = Pt(size)
+        run.font.name = font_name or theme.font_name
+        run.bold = bold
+        run.italic = italic
+        if color is not None:
+            run.font.color.rgb = color
+        return run
 
+    @staticmethod
+    def _set_left_border(paragraph, color_hex: str, size: int = 18) -> None:
+        p_pr = paragraph._p.get_or_add_pPr()
+        p_bdr = OxmlElement("w:pBdr")
+        left = OxmlElement("w:left")
+        left.set(qn("w:val"), "single")
+        left.set(qn("w:sz"), str(size))
+        left.set(qn("w:space"), "4")
+        left.set(qn("w:color"), color_hex)
+        p_bdr.append(left)
+        p_pr.append(p_bdr)
+
+    def _add_hyperlink(self, paragraph, text: str, url: str, font_size: float) -> None:
+        theme = self._theme
         part = paragraph.part
         r_id = part.relate_to(
             url,
@@ -315,43 +340,62 @@ class ResumeDocumentGenerator:
         )
         hyperlink = paragraph._p.makeelement(qn("w:hyperlink"), {qn("r:id"): r_id})
         new_run = hyperlink.makeelement(qn("w:r"), {})
-        rPr = new_run.makeelement(qn("w:rPr"), {})
-        c = rPr.makeelement(qn("w:color"), {qn("w:val"): "34495E"})
-        rPr.append(c)
-        u = rPr.makeelement(qn("w:u"), {qn("w:val"): "single"})
-        rPr.append(u)
-        sz = rPr.makeelement(qn("w:sz"), {qn("w:val"): str(int(font_size.pt * 2))})
-        rPr.append(sz)
-        new_run.append(rPr)
+        r_pr = new_run.makeelement(qn("w:rPr"), {})
+        c = r_pr.makeelement(qn("w:color"), {qn("w:val"): theme.link_color})
+        r_pr.append(c)
+        u = r_pr.makeelement(qn("w:u"), {qn("w:val"): "single"})
+        r_pr.append(u)
+        sz = r_pr.makeelement(qn("w:sz"), {qn("w:val"): str(int(font_size * 2))})
+        r_pr.append(sz)
+        fonts = r_pr.makeelement(
+            qn("w:rFonts"),
+            {
+                qn("w:ascii"): theme.contact_font_name,
+                qn("w:hAnsi"): theme.contact_font_name,
+            },
+        )
+        r_pr.append(fonts)
+        new_run.append(r_pr)
         t = new_run.makeelement(qn("w:t"), {})
         t.text = text
         new_run.append(t)
         hyperlink.append(new_run)
         paragraph._p.append(hyperlink)
 
+    def _rule_color(self) -> RGBColor:
+        theme = self._theme
+        if theme.name == "creative":
+            return theme.accent_color
+        return RGBColor(0x95, 0xA5, 0xA6)
+
+    def _rule_char(self) -> str:
+        return "═" if self._theme.name == "classic" else "─"
+
     def _add_header(self, doc: Document, profile: ResumeProfile) -> None:
-        """Add name, title, and contact information."""
-        # Name
+        theme = self._theme
+
         p = doc.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.alignment = theme.header_align
         p.paragraph_format.space_after = Pt(0)
-        run = p.add_run(f"{profile.first_name} {profile.last_name}")
-        run.bold = True
-        run.font.size = Pt(20)
-        run.font.name = self._font_name
-        run.font.color.rgb = RGBColor(0x1A, 0x1A, 0x2E)
+        self._add_run(
+            p,
+            f"{profile.first_name} {profile.last_name}",
+            size=theme.name_size,
+            bold=True,
+            color=theme.name_color,
+        )
 
-        # Title
         p = doc.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.alignment = theme.header_align
         p.paragraph_format.space_after = Pt(2)
-        run = p.add_run(profile.profession)
-        run.font.size = Pt(12)
-        run.font.name = self._font_name
-        run.font.color.rgb = RGBColor(0x2C, 0x3E, 0x50)
-        run.italic = True
+        self._add_run(
+            p,
+            profile.profession,
+            size=theme.title_size,
+            italic=theme.title_italic,
+            color=theme.title_color,
+        )
 
-        # Contact line
         contact_parts: list[tuple[str, str | None]] = []
         if profile.email:
             contact_parts.append((profile.email, f"mailto:{profile.email}"))
@@ -367,160 +411,186 @@ class ResumeDocumentGenerator:
 
         if contact_parts:
             p = doc.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.alignment = theme.header_align
             p.paragraph_format.space_after = Pt(4)
             for i, (text, url) in enumerate(contact_parts):
                 if i > 0:
-                    run = p.add_run(" | ")
-                    run.font.size = Pt(9.5)
-                    run.font.name = self._font_name
-                    run.font.color.rgb = RGBColor(0x34, 0x49, 0x5E)
+                    self._add_run(
+                        p,
+                        " | ",
+                        size=theme.contact_size,
+                        color=theme.contact_color,
+                        font_name=theme.contact_font_name,
+                    )
                 if url:
-                    self._add_hyperlink(p, text, url, Pt(9.5))
+                    self._add_hyperlink(p, text, url, theme.contact_size)
                 else:
-                    run = p.add_run(text)
-                    run.font.size = Pt(9.5)
-                    run.font.name = self._font_name
-                    run.font.color.rgb = RGBColor(0x34, 0x49, 0x5E)
+                    self._add_run(
+                        p,
+                        text,
+                        size=theme.contact_size,
+                        color=theme.contact_color,
+                        font_name=theme.contact_font_name,
+                    )
 
-        # Horizontal rule
-        p = doc.add_paragraph()
-        p.paragraph_format.space_before = Pt(0)
-        p.paragraph_format.space_after = Pt(6)
-        run = p.add_run("─" * 85)
-        run.font.size = Pt(6)
-        run.font.color.rgb = RGBColor(0x95, 0xA5, 0xA6)
+        if theme.header_rule:
+            p = doc.add_paragraph()
+            p.alignment = theme.header_align
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after = Pt(6)
+            self._add_run(
+                p,
+                self._rule_char() * theme.section_rule_width,
+                size=6,
+                color=self._rule_color(),
+            )
 
     def _add_section_heading(self, doc: Document, text: str) -> None:
-        """Add a section heading consistent with ATS requirements."""
+        theme = self._theme
         p = doc.add_paragraph()
         p.paragraph_format.space_before = Pt(8)
         p.paragraph_format.space_after = Pt(4)
         p.paragraph_format.keep_with_next = True
+        if theme.header_align == WD_ALIGN_PARAGRAPH.LEFT:
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
-        run = p.add_run(text.upper())
-        run.bold = True
-        run.font.size = Pt(12)
-        run.font.name = self._font_name
-        run.font.color.rgb = RGBColor(0x1A, 0x1A, 0x2E)
-
-        # Underline
-        run2 = p.add_run("\n" + "─" * 85)
-        run2.font.size = Pt(5)
-        run2.font.color.rgb = RGBColor(0x95, 0xA5, 0xA6)
+        self._add_run(
+            p,
+            text.upper(),
+            size=theme.section_heading_size,
+            bold=True,
+            color=theme.heading_color,
+        )
+        self._add_run(
+            p,
+            "\n" + self._rule_char() * theme.section_rule_width,
+            size=5,
+            color=self._rule_color(),
+        )
 
     def _add_skill_line(self, doc: Document, category: str, skills: list[str]) -> None:
-        """Add a skill category line."""
         p = doc.add_paragraph()
         p.paragraph_format.space_after = Pt(1)
         p.paragraph_format.space_before = Pt(0)
         p.paragraph_format.keep_with_next = True
 
-        run = p.add_run(f"{category}: ")
-        run.bold = True
-        run.font.size = Pt(10)
-        run.font.name = self._font_name
+        self._add_run(p, f"{category}: ", size=10, bold=True)
+        self._add_run(p, ", ".join(sorted(skills)), size=10)
 
-        run2 = p.add_run(", ".join(sorted(skills)))
-        run2.font.size = Pt(10)
-        run2.font.name = self._font_name
+    def _project_indent(self) -> Inches:
+        return Inches(0.12) if self._theme.project_left_border else Inches(0)
 
     def _add_project_entry(self, doc: Document, project: Any) -> None:
-        """Add a professional experience entry for one project."""
-        # Company / Customer name
+        theme = self._theme
+        indent = self._project_indent()
+
         p = doc.add_paragraph()
         p.paragraph_format.space_before = Pt(8)
         p.paragraph_format.space_after = Pt(0)
         p.paragraph_format.keep_with_next = True
+        if theme.project_left_border:
+            p.paragraph_format.left_indent = indent
+            self._set_left_border(p, theme.accent_hex)
 
-        run = p.add_run(project.customer)
-        run.bold = True
-        run.font.size = Pt(11.5)
-        run.font.name = self._font_name
+        self._add_run(
+            p,
+            project.customer,
+            size=theme.company_size,
+            bold=True,
+            color=theme.heading_color,
+        )
 
-        # Role
         if project.role:
             p2 = doc.add_paragraph()
             p2.paragraph_format.space_before = Pt(0)
             p2.paragraph_format.space_after = Pt(0)
             p2.paragraph_format.keep_with_next = True
+            if theme.project_left_border:
+                p2.paragraph_format.left_indent = indent
 
-            run = p2.add_run(project.role)
-            run.font.size = Pt(10.5)
-            run.font.name = self._font_name
-            run.italic = True
-            run.font.color.rgb = RGBColor(0x2C, 0x3E, 0x50)
+            self._add_run(
+                p2,
+                project.role,
+                size=theme.role_size,
+                bold=theme.role_bold,
+                italic=theme.role_italic,
+                color=theme.role_color,
+            )
 
-        # Dates
         p3 = doc.add_paragraph()
         p3.paragraph_format.space_before = Pt(0)
         p3.paragraph_format.space_after = Pt(4)
         p3.paragraph_format.keep_with_next = True
+        if theme.project_left_border:
+            p3.paragraph_format.left_indent = indent
 
-        run = p3.add_run(
+        date_font = theme.contact_font_name if theme.name == "creative" else theme.font_name
+        self._add_run(
+            p3,
             f"{project.start_date.strftime('%b %Y')} — {project.end_date.strftime('%b %Y')}"
-            f"  |  {project.days} days"
+            f"  |  {project.days} days",
+            size=theme.date_size,
+            color=theme.date_color,
+            font_name=date_font,
         )
-        run.font.size = Pt(9)
-        run.font.name = self._font_name
-        run.font.color.rgb = RGBColor(0x7F, 0x8C, 0x8D)
 
-        # Responsibilities
         if project.responsibilities:
             p4 = doc.add_paragraph()
             p4.paragraph_format.space_before = Pt(2)
             p4.paragraph_format.space_after = Pt(2)
-            run = p4.add_run("Responsibilities:")
-            run.bold = True
-            run.font.size = Pt(10)
-            run.font.name = self._font_name
+            if theme.project_left_border:
+                p4.paragraph_format.left_indent = indent
+            self._add_run(p4, "Responsibilities:", size=10, bold=True)
 
             for resp in project.responsibilities:
-                bullet = doc.add_paragraph(style="List Bullet")
-                bullet.clear()
-                run = bullet.add_run(resp)
-                run.font.size = Pt(10)
-                run.font.name = self._font_name
-                bullet.paragraph_format.space_after = Pt(1)
-                bullet.paragraph_format.space_before = Pt(0)
+                self._add_bullet(doc, resp, indent)
 
-        # Achievements
         if project.achievements:
             p5 = doc.add_paragraph()
             p5.paragraph_format.space_before = Pt(4)
             p5.paragraph_format.space_after = Pt(2)
-            run = p5.add_run("Achievements:")
-            run.bold = True
-            run.font.size = Pt(10)
-            run.font.name = self._font_name
+            if theme.project_left_border:
+                p5.paragraph_format.left_indent = indent
+            self._add_run(p5, "Achievements:", size=10, bold=True)
 
             for ach in project.achievements:
-                bullet = doc.add_paragraph(style="List Bullet")
-                bullet.clear()
-                run = bullet.add_run(ach)
-                run.font.size = Pt(10)
-                run.font.name = self._font_name
-                bullet.paragraph_format.space_after = Pt(1)
-                bullet.paragraph_format.space_before = Pt(0)
+                self._add_bullet(doc, ach, indent)
 
-        # Technologies
         if project.technologies:
             p6 = doc.add_paragraph()
             p6.paragraph_format.space_before = Pt(4)
             p6.paragraph_format.space_after = Pt(2)
-            run = p6.add_run("Technologies: ")
-            run.bold = True
-            run.font.size = Pt(9.5)
-            run.font.name = self._font_name
+            if theme.project_left_border:
+                p6.paragraph_format.left_indent = indent
+            self._add_run(p6, "Technologies: ", size=9.5, bold=True)
+            tech_font = theme.contact_font_name if theme.name == "creative" else theme.font_name
+            self._add_run(
+                p6,
+                ", ".join(sorted(set(project.technologies))),
+                size=9.5,
+                color=theme.tech_color,
+                font_name=tech_font,
+            )
 
-            run2 = p6.add_run(", ".join(sorted(set(project.technologies))))
-            run2.font.size = Pt(9.5)
-            run2.font.name = self._font_name
-            run2.font.color.rgb = RGBColor(0x34, 0x49, 0x5E)
-
-        # Spacer between projects
         p_spacer = doc.add_paragraph()
         p_spacer.paragraph_format.space_before = Pt(2)
         p_spacer.paragraph_format.space_after = Pt(0)
-        run = p_spacer.add_run("")
-        run.font.size = Pt(2)
+        self._add_run(p_spacer, "", size=2)
+
+    def _add_bullet(self, doc: Document, text: str, indent: Inches) -> None:
+        theme = self._theme
+        if theme.bullet_prefix:
+            bullet = doc.add_paragraph()
+            bullet.paragraph_format.space_after = Pt(1)
+            bullet.paragraph_format.space_before = Pt(0)
+            if theme.project_left_border:
+                bullet.paragraph_format.left_indent = indent
+            self._add_run(bullet, theme.bullet_prefix, size=10, color=theme.accent_color)
+            self._add_run(bullet, text, size=10)
+            return
+
+        bullet = doc.add_paragraph(style="List Bullet")
+        bullet.clear()
+        self._add_run(bullet, text, size=10)
+        bullet.paragraph_format.space_after = Pt(1)
+        bullet.paragraph_format.space_before = Pt(0)

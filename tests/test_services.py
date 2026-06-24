@@ -541,5 +541,72 @@ class TestLoadEnvFile:
         assert result == {"KEY": "value", "ANOTHER": "test"}
 
 
+class TestDocxTemplates:
+    @staticmethod
+    def _sample_profile() -> main.ResumeProfile:
+        from datetime import datetime
+
+        project = main.ResumeProject(
+            customer="Acme",
+            role="Developer",
+            start_date=datetime(2023, 1, 1),
+            end_date=datetime(2023, 6, 1),
+            days=150,
+            technologies=["C#"],
+            responsibilities=["Built APIs"],
+            achievements=["Delivered on time"],
+            work_types=["Development"],
+        )
+        return main.ResumeProfile(
+            first_name="Jane",
+            last_name="Doe",
+            profession="Senior Developer",
+            summary="Experienced engineer.",
+            email="jane@example.com",
+            linkedin="linkedin.com/in/jane",
+            skills={"Backend": ["C#"]},
+            projects=[project],
+        )
+
+    @pytest.mark.parametrize(
+        "template,expected_font,expected_align",
+        [
+            ("modern", "Calibri", 1),
+            ("classic", "Georgia", 1),
+            ("minimalist", "Calibri", 0),
+            ("creative", "Segoe UI", 0),
+        ],
+    )
+    def test_docx_template_applies_styles(
+        self, template: str, expected_font: str, expected_align: int
+    ) -> None:
+        from docx import Document
+
+        from src.docx_styles import get_docx_theme
+        from src.exporters import ResumeDocumentGenerator, save_document
+
+        settings = main.Settings(resume_template=template)
+        assert get_docx_theme(template).name == template
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, f"{template}.docx")
+            doc = ResumeDocumentGenerator(settings).generate(self._sample_profile())
+            save_document(doc, path)
+
+            loaded = Document(path)
+            name_run = loaded.paragraphs[0].runs[0]
+            assert name_run.font.name == expected_font
+            assert loaded.paragraphs[0].alignment == expected_align
+
+            if template == "creative":
+                assert "▹" in loaded.paragraphs[-2].text or any(
+                    "▹" in p.text for p in loaded.paragraphs
+                )
+
+            if template == "minimalist":
+                headings = [p.text for p in loaded.paragraphs if "CORE COMPETENCIES" in p.text]
+                assert not headings
+
+
 if __name__ == "__main__":
     pytest.main(["-v", __file__])
