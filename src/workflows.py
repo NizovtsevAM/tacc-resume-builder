@@ -44,9 +44,7 @@ def tacc_authenticate(email: str, password: str) -> str:
         or resp_data.get("accessToken")
     )
     if not token:
-        raise LLMProviderError(
-            f"No token in auth response. Keys: {list(resp_data.keys())}"
-        )
+        raise LLMProviderError(f"No token in auth response. Keys: {list(resp_data.keys())}")
     return token
 
 
@@ -54,10 +52,7 @@ def fetch_timesheet(token: str, start_date: str, end_date: str) -> list[dict]:
     """Fetch timesheet data from TACC API."""
     start_encoded = urllib.parse.quote(start_date)
     end_encoded = urllib.parse.quote(end_date)
-    url = (
-        f"https://tacc.tula.co/api/timesheet"
-        f"?startDate={start_encoded}&endDate={end_encoded}"
-    )
+    url = f"https://tacc.tula.co/api/timesheet?startDate={start_encoded}&endDate={end_encoded}"
 
     req = urllib.request.Request(
         url,
@@ -70,9 +65,7 @@ def fetch_timesheet(token: str, start_date: str, end_date: str) -> list[dict]:
     with urllib.request.urlopen(req, timeout=60) as response:
         data = json.loads(response.read().decode("utf-8"))
 
-    records = (
-        data if isinstance(data, list) else data.get("data", data.get("records", []))
-    )
+    records = data if isinstance(data, list) else data.get("data", data.get("records", []))
     logger.info("Fetched %d records from TACC", len(records))
     return records
 
@@ -92,9 +85,7 @@ def workflow_fetch(settings: Settings) -> bool:
             settings.tacc_start_date,
             settings.tacc_end_date,
         )
-        records = fetch_timesheet(
-            token, settings.tacc_start_date, settings.tacc_end_date
-        )
+        records = fetch_timesheet(token, settings.tacc_start_date, settings.tacc_end_date)
 
         import os
 
@@ -121,9 +112,7 @@ def workflow_generate(settings: Settings) -> bool:
 
     if not os.path.exists(settings.input_path):
         logger.error("Input file not found: %s", settings.input_path)
-        logger.info(
-            "Run the 'fetch' workflow first, or place data at %s", settings.input_path
-        )
+        logger.info("Run the 'fetch' workflow first, or place data at %s", settings.input_path)
         return False
 
     try:
@@ -142,9 +131,7 @@ def workflow_generate(settings: Settings) -> bool:
                     settings.llm_model,
                 )
             except Exception as e:
-                logger.warning(
-                    "LLM initialization failed, continuing without LLM: %s", e
-                )
+                logger.warning("LLM initialization failed, continuing without LLM: %s", e)
                 llm = None
         else:
             logger.info("LLM analysis disabled (set USE_LLM=true in .env to enable)")

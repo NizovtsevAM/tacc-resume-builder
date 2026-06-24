@@ -75,19 +75,22 @@ class ResumeDataProcessor:
         # Step 3: Enhance each project
         projects = self._enhance_projects(work_groups)
 
-        # Step 4: Detect profession
+        # Step 4: Resolve profession — explicit TITLE from .env takes priority over auto-detection
         all_techs = list(dict.fromkeys(t for p in projects for t in p.technologies))
         all_descs = [d for p in projects for d in p.descriptions]
-        all_work_types = list(
-            dict.fromkeys(wt for p in projects for wt in p.work_types)
-        )
-        profession = self.profession_detector.detect(
-            all_techs,
-            all_descs,
-            all_work_types,
-            use_llm=self.settings.use_llm,
-        )
-        logger.info("Detected profession: %s", profession)
+        all_work_types = list(dict.fromkeys(wt for p in projects for wt in p.work_types))
+        title = (self.settings.title or "").strip()
+        if title and title.lower() != "auto":
+            profession = title
+            logger.info("Using profession from TITLE setting: %s", profession)
+        else:
+            profession = self.profession_detector.detect(
+                all_techs,
+                all_descs,
+                all_work_types,
+                use_llm=self.settings.use_llm,
+            )
+            logger.info("Detected profession: %s", profession)
 
         # Step 5: Calculate total experience
         # Use the latest date from ALL input records (not just billable projects)
@@ -193,9 +196,7 @@ class ResumeDataProcessor:
             if not dates:
                 continue
 
-            descriptions = [
-                r.get("Description", "") for r in recs if r.get("Description")
-            ]
+            descriptions = [r.get("Description", "") for r in recs if r.get("Description")]
 
             result.append(
                 {

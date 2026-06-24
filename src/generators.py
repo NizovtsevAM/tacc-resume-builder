@@ -54,8 +54,7 @@ class AchievementGenerator:
             for d in unique_descs
             if len(d) > 15
             and not any(
-                kw in d.lower()
-                for kw in ["meeting", "standup", "daily", "email", "phone call"]
+                kw in d.lower() for kw in ["meeting", "standup", "daily", "email", "phone call"]
             )
         ]
 
@@ -67,11 +66,7 @@ class AchievementGenerator:
         achievements: list[str] = []
 
         # Categorize based on content
-        bug_fixes = [
-            d
-            for d in meaningful
-            if re.search(r"(?i)\b(fix|bug|error|issue|broken)\b", d)
-        ]
+        bug_fixes = [d for d in meaningful if re.search(r"(?i)\b(fix|bug|error|issue|broken)\b", d)]
         features = [
             d
             for d in meaningful
@@ -106,9 +101,7 @@ class AchievementGenerator:
             responsibilities.append(
                 "Conducted code refactoring and system modernization initiatives."
             )
-            achievements.append(
-                "Refactored and optimized legacy code, improving maintainability."
-            )
+            achievements.append("Refactored and optimized legacy code, improving maintainability.")
         if support_items:
             responsibilities.append(
                 "Provided technical support and investigation for production systems."
@@ -118,9 +111,7 @@ class AchievementGenerator:
             responsibilities.append(
                 f"Developed and maintained software solutions using {', '.join(technologies[:5])}."
             )
-            achievements.append(
-                "Contributed to the successful delivery of project milestones."
-            )
+            achievements.append("Contributed to the successful delivery of project milestones.")
 
         return responsibilities[:5], achievements[:5]
 
@@ -168,9 +159,7 @@ Descriptions:
             system_prompt="You are a professional resume writer. Generate responsibilities and achievements from work descriptions.",
             max_tokens=1000,
             temperature=0.3,
-            cache_key=hashlib.md5(
-                (sample + str(technologies[:5])).encode()
-            ).hexdigest(),
+            cache_key=hashlib.md5((sample + str(technologies[:5])).encode()).hexdigest(),
         )
 
         if not result:
@@ -384,9 +373,7 @@ Return ONLY the profession title, nothing else."""
             system_prompt="You are a profession classification expert. Return only the profession title.",
             max_tokens=50,
             temperature=0.1,
-            cache_key=hashlib.md5(
-                (sample + str(technologies[:10])).encode()
-            ).hexdigest(),
+            cache_key=hashlib.md5((sample + str(technologies[:10])).encode()).hexdigest(),
         )
 
         if result and len(result) < 60:
@@ -726,10 +713,7 @@ Return one per line, nothing else."""
                             if best_match:
                                 if best_match not in result:
                                     result[best_match] = []
-                                if (
-                                    tech not in result[best_match]
-                                    and tech in technologies
-                                ):
+                                if tech not in result[best_match] and tech in technologies:
                                     result[best_match].append(tech)
 
         return result
@@ -767,9 +751,7 @@ def generate_professional_summary(
             industries.add("Media & Entertainment")
         elif "bel air" in name_lower or "internet" in name_lower or "isp" in name_lower:
             industries.add("Telecommunications/ISP")
-        elif (
-            "block" in name_lower or "fintech" in name_lower or "finance" in name_lower
-        ):
+        elif "block" in name_lower or "fintech" in name_lower or "finance" in name_lower:
             industries.add("Fintech")
         elif "insta" in name_lower or "vin" in name_lower:
             industries.add("Automotive")
@@ -810,9 +792,7 @@ Return ONLY the summary paragraph."""
 
     # Fallback: generate a structured summary
     industries_str = (
-        f"across {', '.join(industries)}"
-        if industries
-        else "across multiple industries"
+        f"across {', '.join(industries)}" if industries else "across multiple industries"
     )
     tech_str = ", ".join(top_techs[:8])
 

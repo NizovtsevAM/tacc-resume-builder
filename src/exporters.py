@@ -35,9 +35,7 @@ def save_document(doc: Document, output_path: str) -> None:
     logger.info("Resume DOCX saved to: %s", output_path)
 
 
-def export_resume_html(
-    profile: ResumeProfile, settings: Settings, output_path: str
-) -> None:
+def export_resume_html(profile: ResumeProfile, settings: Settings, output_path: str) -> None:
     """Export resume data to HTML using a template."""
     templates_dir = os.path.join(os.path.dirname(__file__), "..", "templates")
     template_name = settings.resume_template if settings.resume_template else "modern"
@@ -97,7 +95,9 @@ def export_resume_html(
                     f'    <div class="skills-grid">\n'
                 )
                 for skill in sorted(profile.skills[category]):
-                    skills_html += f'      <span class="skill-tag">{html_mod.escape(skill)}</span>\n'
+                    skills_html += (
+                        f'      <span class="skill-tag">{html_mod.escape(skill)}</span>\n'
+                    )
                 skills_html += "    </div>\n  </div>\n"
         for category in sorted(profile.skills.keys()):
             if category not in [
@@ -116,7 +116,9 @@ def export_resume_html(
                     f'    <div class="skills-grid">\n'
                 )
                 for skill in sorted(profile.skills[category]):
-                    skills_html += f'      <span class="skill-tag">{html_mod.escape(skill)}</span>\n'
+                    skills_html += (
+                        f'      <span class="skill-tag">{html_mod.escape(skill)}</span>\n'
+                    )
                 skills_html += "    </div>\n  </div>\n"
         skills_html += "</div>\n"
 
@@ -124,13 +126,9 @@ def export_resume_html(
     projects_html = ""
     for project in profile.projects:
         projects_html += '<div class="project">\n'
-        projects_html += (
-            f'  <div class="company">{html_mod.escape(project.customer)}</div>\n'
-        )
+        projects_html += f'  <div class="company">{html_mod.escape(project.customer)}</div>\n'
         if project.role:
-            projects_html += (
-                f'  <div class="role">{html_mod.escape(project.role)}</div>\n'
-            )
+            projects_html += f'  <div class="role">{html_mod.escape(project.role)}</div>\n'
         projects_html += (
             f'  <div class="dates">'
             f"{project.start_date.strftime('%b %Y')} — {project.end_date.strftime('%b %Y')}"
@@ -172,13 +170,9 @@ def export_resume_html(
     html_content = html_content.replace(
         "{{ NAME }}", html_mod.escape(f"{profile.first_name} {profile.last_name}")
     )
-    html_content = html_content.replace(
-        "{{ PROFESSION }}", html_mod.escape(profile.profession)
-    )
+    html_content = html_content.replace("{{ PROFESSION }}", html_mod.escape(profile.profession))
     html_content = html_content.replace("{{ CONTACTS }}", contacts)
-    html_content = html_content.replace(
-        "{{ SUMMARY }}", html_mod.escape(profile.summary)
-    )
+    html_content = html_content.replace("{{ SUMMARY }}", html_mod.escape(profile.summary))
     html_content = html_content.replace("{{ SKILLS_SECTION }}", skills_html)
     html_content = html_content.replace("{{ PROJECTS }}", projects_html)
     html_content = html_content.replace("{{ EDUCATION_SECTION }}", education_html)
@@ -331,6 +325,7 @@ class ResumeDocumentGenerator:
         new_run.append(rPr)
         t = new_run.makeelement(qn("w:t"), {})
         t.text = text
+        new_run.append(t)
         hyperlink.append(new_run)
         paragraph._p.append(hyperlink)
 

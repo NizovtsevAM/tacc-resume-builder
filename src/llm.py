@@ -118,8 +118,7 @@ class LLMClientProtocol(Protocol):
         max_tokens: int | None = None,
         temperature: float = 0.3,
         cache_key: str | None = None,
-    ) -> str:
-        ...
+    ) -> str: ...
 
 
 class BaseLLMClient:
@@ -214,9 +213,7 @@ class BaseLLMClient:
         elif provider == LLMProvider.GEMINI:
             return self._call_openai_compat(messages, max_tokens, temperature)
         else:
-            logger.warning(
-                "Unknown provider %s, falling back to OpenAI-compat", provider
-            )
+            logger.warning("Unknown provider %s, falling back to OpenAI-compat", provider)
             return self._call_openai_compat(messages, max_tokens, temperature)
 
     def _call_openai_compat(
@@ -270,9 +267,7 @@ class BaseLLMClient:
         }
         headers: dict[str, str] = {"Content-Type": "application/json"}
         data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
-            base_url, data=data, headers=headers, method="POST"
-        )
+        req = urllib.request.Request(base_url, data=data, headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=self.settings.llm_timeout) as resp:
             resp_data = json.loads(resp.read().decode("utf-8"))
 

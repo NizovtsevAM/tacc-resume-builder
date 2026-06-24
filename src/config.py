@@ -158,17 +158,13 @@ class Settings(BaseModel):
     llm_model: str = Field(default=DEFAULT_LLM_MODEL)
     llm_provider: str = Field(default=DEFAULT_LLM_PROVIDER)
     llm_api_key: str = Field(default="")
-    llm_timeout: int = Field(
-        default=DEFAULT_LLM_TIMEOUT, ge=MIN_LLM_TIMEOUT, le=MAX_LLM_TIMEOUT
-    )
+    llm_timeout: int = Field(default=DEFAULT_LLM_TIMEOUT, ge=MIN_LLM_TIMEOUT, le=MAX_LLM_TIMEOUT)
     llm_max_tokens: int = Field(
         default=DEFAULT_LLM_MAX_TOKENS, ge=MIN_LLM_MAX_TOKENS, le=MAX_LLM_MAX_TOKENS
     )
 
     # Template
-    resume_template: str = Field(
-        default=DEFAULT_TEMPLATE, description="Resume template name"
-    )
+    resume_template: str = Field(default=DEFAULT_TEMPLATE, description="Resume template name")
     # Education (optional)
     education: str = Field(default="")
 
@@ -212,9 +208,7 @@ class Settings(BaseModel):
             if parsed is None:
                 import warnings
 
-                warnings.warn(
-                    f"Date string '{v}' could not be parsed with known formats"
-                )
+                warnings.warn(f"Date string '{v}' could not be parsed with known formats")
         return v
 
     @field_validator("email")

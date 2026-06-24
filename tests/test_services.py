@@ -41,9 +41,7 @@ def sample_descriptions() -> list[str]:
 def mock_llm() -> MagicMock:
     """Mock LLM client that returns pre-defined responses."""
     mock = MagicMock(spec=main.BaseLLMClient)
-    mock.chat.return_value = (
-        "ASP.NET Core, Entity Framework, C#, Azure, Docker, React, TypeScript"
-    )
+    mock.chat.return_value = "ASP.NET Core, Entity Framework, C#, Azure, Docker, React, TypeScript"
     return mock
 
 
@@ -506,9 +504,7 @@ class TestChunkText:
     def test_chunk_long_text(self):
         from src.config import _chunk_text
 
-        text = ". ".join(
-            ["This is a long sentence with enough content to be split"] * 50
-        )
+        text = ". ".join(["This is a long sentence with enough content to be split"] * 50)
         chunks = _chunk_text(text, max_chars=500)
         assert len(chunks) > 1
         assert all(len(c) <= 500 for c in chunks)
