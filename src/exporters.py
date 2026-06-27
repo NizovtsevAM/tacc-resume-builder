@@ -17,6 +17,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
 from .config import Settings
+from .constants import SKILL_CATEGORIES
 from .docx_styles import get_docx_theme
 from .models import ResumeProfile
 
@@ -81,16 +82,7 @@ def export_resume_html(profile: ResumeProfile, settings: Settings, output_path: 
     skills_html = ""
     if profile.skills:
         skills_html = '<div class="section">\n  <h2>Technical Skills</h2>\n'
-        for category in [
-            "Backend",
-            "Frontend",
-            "Cloud",
-            "DevOps",
-            "Databases",
-            "Testing",
-            "Data Engineering",
-            "Architecture",
-        ]:
+        for category in SKILL_CATEGORIES:
             if category in profile.skills:
                 skills_html += (
                     f'  <div class="skill-category">\n'
@@ -103,16 +95,7 @@ def export_resume_html(profile: ResumeProfile, settings: Settings, output_path: 
                     )
                 skills_html += "    </div>\n  </div>\n"
         for category in sorted(profile.skills.keys()):
-            if category not in [
-                "Backend",
-                "Frontend",
-                "Cloud",
-                "DevOps",
-                "Databases",
-                "Testing",
-                "Data Engineering",
-                "Architecture",
-            ]:
+            if category not in SKILL_CATEGORIES:
                 skills_html += (
                     f'  <div class="skill-category">\n'
                     f'    <div class="cat-name">{html_mod.escape(category)}</div>\n'
@@ -222,30 +205,11 @@ class ResumeDocumentGenerator:
         if profile.skills and theme.show_core_competencies:
             self._add_section_heading(doc, "CORE COMPETENCIES")
             all_skills: list[str] = []
-            for cat in [
-                "Backend",
-                "Frontend",
-                "Cloud",
-                "DevOps",
-                "Databases",
-                "Testing",
-                "Data Engineering",
-                "Architecture",
-            ]:
+            for cat in SKILL_CATEGORIES:
                 if cat in profile.skills:
                     all_skills.extend(profile.skills[cat])
             for cat, skills in profile.skills.items():
-                if cat not in [
-                    "Backend",
-                    "Frontend",
-                    "Cloud",
-                    "DevOps",
-                    "Databases",
-                    "Testing",
-                    "Data Engineering",
-                    "Architecture",
-                    "Other",
-                ]:
+                if cat not in SKILL_CATEGORIES and cat != "Other":
                     all_skills.extend(skills)
 
             seen = set()
@@ -261,29 +225,11 @@ class ResumeDocumentGenerator:
 
         if profile.skills:
             self._add_section_heading(doc, "TECHNICAL SKILLS")
-            for category in [
-                "Backend",
-                "Frontend",
-                "Cloud",
-                "DevOps",
-                "Databases",
-                "Testing",
-                "Data Engineering",
-                "Architecture",
-            ]:
+            for category in SKILL_CATEGORIES:
                 if category in profile.skills:
                     self._add_skill_line(doc, category, profile.skills[category])
             for category in sorted(profile.skills.keys()):
-                if category not in [
-                    "Backend",
-                    "Frontend",
-                    "Cloud",
-                    "DevOps",
-                    "Databases",
-                    "Testing",
-                    "Data Engineering",
-                    "Architecture",
-                ]:
+                if category not in SKILL_CATEGORIES:
                     self._add_skill_line(doc, category, profile.skills[category])
 
         self._add_section_heading(doc, "PROFESSIONAL EXPERIENCE")

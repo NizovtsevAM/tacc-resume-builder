@@ -121,3 +121,19 @@ DEFAULT_TECHNOLOGY_BLACKLIST: tuple[str, ...] = (
     "support",
     "meeting",
 )
+
+# Skill categories ordering for display (HTML and DOCX)
+SKILL_CATEGORIES: tuple[str, ...] = (
+    "Backend",
+    "Frontend",
+    "Cloud",
+    "DevOps",
+    "Databases",
+    "Testing",
+    "Data Engineering",
+    "Architecture",
+)
+
+# LLM API URL paths
+LLM_OPENAI_COMPAT_PATH: str = "/v1/chat/completions"
+LLM_OLLAMA_PATH: str = "/api/chat"

@@ -25,13 +25,11 @@ from .constants import (
     RATE_LIMITER_DEFAULT_RPM,
     LLM_RETRY_BACKOFF_BASE,
     RATE_LIMITER_ACQUIRE_TIMEOUT,
+    LLM_OPENAI_COMPAT_PATH,
+    LLM_OLLAMA_PATH,
 )
 
 logger = logging.getLogger("TACC Resume builder")
-
-# Initialize defaults on Settings class
-_Settings.llm_rate_limit_rpm = RATE_LIMITER_DEFAULT_RPM
-_Settings.llm_max_burst = RATE_LIMITER_DEFAULT_BURST
 
 
 class LLMProvider(Enum):
@@ -122,17 +120,36 @@ class LLMClientProtocol(Protocol):
 
 
 class BaseLLMClient:
-    """Abstract LLM client with rate limiting. Override _call_impl for custom providers."""
+    """Abstract LLM client with rate limiting. Uses registry pattern for providers."""
+
+    # Registry mapping provider enums to their call methods
+    _PROVIDER_REGISTRY: dict[LLMProvider, str] = {
+        LLMProvider.OLLAMA: "_call_ollama",
+        LLMProvider.LMSTUDIO: "_call_openai_compat",
+        LLMProvider.OPENAI: "_call_openai_compat",
+        LLMProvider.AZURE: "_call_openai_compat",
+        LLMProvider.OPENROUTER: "_call_openai_compat",
+        LLMProvider.ANTHROPIC: "_call_openai_compat",
+        LLMProvider.GEMINI: "_call_openai_compat",
+    }
 
     def __init__(self, settings: Any) -> None:
         self.settings: _Settings = settings
         self._cache: dict[str, LLMResponse] = {}
         self._provider = LLMProvider(settings.llm_provider)
+        rate_rpm = getattr(settings, "llm_rate_limit_rpm", RATE_LIMITER_DEFAULT_RPM)
+        max_burst = getattr(settings, "llm_max_burst", RATE_LIMITER_DEFAULT_BURST)
         self._rate_limiter = TokenBucketRateLimiter(
-            tokens_per_minute=settings.llm_rate_limit_rpm,
-            max_burst=settings.llm_max_burst,
+            tokens_per_minute=rate_rpm,
+            max_burst=max_burst,
         )
         self._rate_limiter_enabled = True
+
+    def _mask_api_key(self, key: str) -> str:
+        """Mask API key for safe logging."""
+        if not key or len(key) < 8:
+            return "***"
+        return key[:4] + "..." + key[-4:]
 
     def chat(
         self,
@@ -191,30 +208,16 @@ class BaseLLMClient:
         max_tokens: int,
         temperature: float,
     ) -> LLMResponse:
-        """Provider-specific implementation. Dispatches based on provider type."""
+        """Provider-specific implementation. Uses registry pattern for dispatch."""
         if self._rate_limiter_enabled:
             if not self._rate_limiter.acquire(timeout=30.0):
                 logger.warning("Rate limit timeout exceeded, returning empty response")
                 return LLMResponse(content="")
 
         provider = self._provider
-        if provider == LLMProvider.OLLAMA:
-            return self._call_ollama(messages, max_tokens, temperature)
-        elif provider == LLMProvider.LMSTUDIO:
-            return self._call_openai_compat(messages, max_tokens, temperature)
-        elif provider == LLMProvider.OPENAI:
-            return self._call_openai_compat(messages, max_tokens, temperature)
-        elif provider == LLMProvider.AZURE:
-            return self._call_openai_compat(messages, max_tokens, temperature)
-        elif provider == LLMProvider.OPENROUTER:
-            return self._call_openai_compat(messages, max_tokens, temperature)
-        elif provider == LLMProvider.ANTHROPIC:
-            return self._call_openai_compat(messages, max_tokens, temperature)
-        elif provider == LLMProvider.GEMINI:
-            return self._call_openai_compat(messages, max_tokens, temperature)
-        else:
-            logger.warning("Unknown provider %s, falling back to OpenAI-compat", provider)
-            return self._call_openai_compat(messages, max_tokens, temperature)
+        method_name = self._PROVIDER_REGISTRY.get(provider, "_call_openai_compat")
+        method = getattr(self, method_name, self._call_openai_compat)
+        return method(messages, max_tokens, temperature)
 
     def _call_openai_compat(
         self,
@@ -256,8 +259,8 @@ class BaseLLMClient:
         base_url = self._normalize_url(self.settings.llm_url)
         parsed = urllib.parse.urlparse(base_url)
         path = parsed.path
-        if "/api/chat" not in path:
-            base_url = f"{parsed.scheme}://{parsed.netloc}/api/chat"
+        if LLM_OLLAMA_PATH not in path:
+            base_url = f"{parsed.scheme}://{parsed.netloc}{LLM_OLLAMA_PATH}"
 
         payload: dict[str, Any] = {
             "model": self.settings.llm_model,
@@ -280,9 +283,9 @@ class BaseLLMClient:
         """Ensure URL has the correct v1/chat/completions path for OpenAI-compat."""
         parsed = urllib.parse.urlparse(raw_url)
         path = parsed.path
-        if "/v1/chat/completions" not in path:
+        if LLM_OPENAI_COMPAT_PATH not in path:
             base = raw_url.rstrip("/")
-            return base + "/v1/chat/completions"
+            return base + LLM_OPENAI_COMPAT_PATH
         return raw_url
 
 

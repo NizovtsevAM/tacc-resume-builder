@@ -9,7 +9,7 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
-from .config import parse_date
+from .config import parse_date, load_json
 from .constants import DEFAULT_INPUT_PATH, JSON_INDENT
 from .extractors import TechnologyExtractor, extract_work_types
 from .schema import validate_tacc_data
@@ -43,8 +43,6 @@ class ResumeDataProcessor:
 
     def process(self) -> ResumeProfile:
         """Full pipeline: load → categorize → group → enhance → build profile."""
-        from .config import load_json
-
         data = load_json(self.settings.input_path)
         logger.info("Loaded %d records from %s", len(data), self.settings.input_path)
         try:
